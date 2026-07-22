@@ -63,23 +63,23 @@ const MAIN_CATEGORIES = [
 const DEFAULT_SUBTYPES = {
   video: [
     { id: "short-video",   name: "短视频",   icon: "video",    color: MORANDI.purple, needsScript: true,  needsCover: true,  needsCopy: true,
-      template: `---\ntype: edit-flow-work\nmain-category: video\nsub-type: short-video\ntitle: "{{title}}"\nstatus: inspiration\ncreated: {{date}}\ntags:\n  - edit-flow/work\n---\n\n# {{title}}\n\n## 灵感\n> 灵感来源\n\n## 选题\n\n## 文案\n\n## 音乐/BGM\n\n## 封面\n\n## 作品内容\n` },
+      template: `---\ntype: edit-flow-work\nmain-category: video\nsub-type: short-video\ntitle: "{{title}}"\nstatus: inspiration\ncreated: {{date}}\ntags:\n  - edit-flow/work\n---\n\n# {{title}}\n\n## 灵感\n> 灵感来源\n\n## 选题\n\n## 文案\n\n## 音乐/BGM\n\n## 封面\n\n## 作品内容\n\n## 逻辑线\n\n> 侧边栏逻辑线视图编辑节点\n` },
     { id: "mix-cut-video",  name: "混剪视频", icon: "film",     color: MORANDI.oat,    needsScript: true,  needsCover: true,  needsCopy: true,
-      template: `---\ntype: edit-flow-work\nmain-category: video\nsub-type: mix-cut-video\ntitle: "{{title}}"\nstatus: inspiration\ncreated: {{date}}\ntags:\n  - edit-flow/work\n---\n\n# {{title}}\n\n## 灵感\n> 混剪主题、节奏\n\n## 选题\n- 主题:\n- 素材来源:\n\n## 文案\n\n## 音乐/BGM\n\n## 封面\n\n## 作品内容\n` },
+      template: `---\ntype: edit-flow-work\nmain-category: video\nsub-type: mix-cut-video\ntitle: "{{title}}"\nstatus: inspiration\ncreated: {{date}}\ntags:\n  - edit-flow/work\n---\n\n# {{title}}\n\n## 灵感\n> 混剪主题、节奏\n\n## 选题\n- 主题:\n- 素材来源:\n\n## 文案\n\n## 音乐/BGM\n\n## 封面\n\n## 作品内容\n\n## 逻辑线\n\n> 侧边栏逻辑线视图编辑节点\n` },
     { id: "lyrics-layout",  name: "歌词排版", icon: "music",    color: MORANDI.green,  needsScript: false, needsCover: true,  needsCopy: true,
-      template: `---\ntype: edit-flow-work\nmain-category: video\nsub-type: lyrics-layout\ntitle: "{{title}}"\nstatus: inspiration\ncreated: {{date}}\ntags:\n  - edit-flow/work\n---\n\n# {{title}}\n\n## 灵感\n> 选曲原因、视觉风格\n\n## 选题\n- 歌曲:\n- 歌手:\n\n## 歌词排版\n\n## 文案\n\n## 音乐/BGM\n\n## 封面\n\n## 作品内容\n` },
+      template: `---\ntype: edit-flow-work\nmain-category: video\nsub-type: lyrics-layout\ntitle: "{{title}}"\nstatus: inspiration\ncreated: {{date}}\ntags:\n  - edit-flow/work\n---\n\n# {{title}}\n\n## 灵感\n> 选曲原因、视觉风格\n\n## 选题\n- 歌曲:\n- 歌手:\n\n## 歌词排版\n\n## 文案\n\n## 音乐/BGM\n\n## 封面\n\n## 作品内容\n\n## 逻辑线\n\n> 侧边栏逻辑线视图编辑节点\n` },
   ],
   image: [
     { id: "poster",         name: "海报",     icon: "image",    color: MORANDI.blue,   needsScript: false, needsCover: false, needsCopy: true,
-      template: `---\ntype: edit-flow-work\nmain-category: image\nsub-type: poster\ntitle: "{{title}}"\nstatus: inspiration\ncreated: {{date}}\ntags:\n  - edit-flow/work\n---\n\n# {{title}}\n\n## 灵感\n> 设计灵感、参考图\n\n## 选题\n- 主题:\n- 尺寸:\n\n## 设计稿\n\n## 作品内容\n\n## 文案\n\n## 音乐/BGM\n` },
+      template: `---\ntype: edit-flow-work\nmain-category: image\nsub-type: poster\ntitle: "{{title}}"\nstatus: inspiration\ncreated: {{date}}\ntags:\n  - edit-flow/work\n---\n\n# {{title}}\n\n## 灵感\n> 设计灵感、参考图\n\n## 选题\n- 主题:\n- 尺寸:\n\n## 设计稿\n\n## 作品内容\n\n## 文案\n\n## 音乐/BGM\n\n## 逻辑线\n\n> 侧边栏逻辑线视图编辑节点\n` },
     { id: "illustration",   name: "插画",     icon: "palette",  color: MORANDI.mauve,  needsScript: false, needsCover: false, needsCopy: true,
-      template: `---\ntype: edit-flow-work\nmain-category: image\nsub-type: illustration\ntitle: "{{title}}"\nstatus: inspiration\ncreated: {{date}}\ntags:\n  - edit-flow/work\n---\n\n# {{title}}\n\n## 灵感\n\n## 选题\n\n## 设计稿\n\n## 作品内容\n\n## 文案\n\n## 音乐/BGM\n` },
+      template: `---\ntype: edit-flow-work\nmain-category: image\nsub-type: illustration\ntitle: "{{title}}"\nstatus: inspiration\ncreated: {{date}}\ntags:\n  - edit-flow/work\n---\n\n# {{title}}\n\n## 灵感\n\n## 选题\n\n## 设计稿\n\n## 作品内容\n\n## 文案\n\n## 音乐/BGM\n\n## 逻辑线\n\n> 侧边栏逻辑线视图编辑节点\n` },
   ],
   text: [
     { id: "article",        name: "文章",     icon: "file-text",color: MORANDI.pink,   needsScript: false, needsCover: false, needsCopy: true,
-      template: `---\ntype: edit-flow-work\nmain-category: text\nsub-type: article\ntitle: "{{title}}"\nstatus: inspiration\ncreated: {{date}}\ntags:\n  - edit-flow/work\n---\n\n# {{title}}\n\n## 灵感\n\n## 选题\n- 主题:\n- 受众:\n\n## 大纲\n\n## 正文\n\n## 文案\n\n## 音乐/BGM\n` },
+      template: `---\ntype: edit-flow-work\nmain-category: text\nsub-type: article\ntitle: "{{title}}"\nstatus: inspiration\ncreated: {{date}}\ntags:\n  - edit-flow/work\n---\n\n# {{title}}\n\n## 灵感\n\n## 选题\n- 主题:\n- 受众:\n\n## 大纲\n\n## 正文\n\n## 文案\n\n## 音乐/BGM\n\n## 逻辑线\n\n> 侧边栏逻辑线视图编辑节点\n` },
     { id: "script-text",    name: "脚本",     icon: "scroll",  color: MORANDI.beige,  needsScript: true,  needsCover: false, needsCopy: true,
-      template: `---\ntype: edit-flow-work\nmain-category: text\nsub-type: script-text\ntitle: "{{title}}"\nstatus: inspiration\ncreated: {{date}}\ntags:\n  - edit-flow/work\n---\n\n# {{title}}\n\n## 灵感\n\n## 选题\n\n## 文案\n\n## 音乐/BGM\n` },
+      template: `---\ntype: edit-flow-work\nmain-category: text\nsub-type: script-text\ntitle: "{{title}}"\nstatus: inspiration\ncreated: {{date}}\ntags:\n  - edit-flow/work\n---\n\n# {{title}}\n\n## 灵感\n\n## 选题\n\n## 文案\n\n## 音乐/BGM\n\n## 逻辑线\n\n> 侧边栏逻辑线视图编辑节点\n` },
   ],
 };
 
@@ -226,29 +226,29 @@ class WorkflowManager {
     }
     let content = this.renderTemplate(tpl, vars);
     content = content.replace(/status: \w+/, `status: ${stage}\nprogress: not-started`);
-    // 写入作品对象到 frontmatter (audience 字段存对象 id)
+    // 写入作品对象到 frontmatter (字段名 character, 存主角名字方便人读)
     if (audience) {
-      content = content.replace(/^(---\n)/, `$1audience: ${audience}\n`);
+      const aud = this.getAudience(audience);
+      const audName = aud ? aud.name : "";
+      if (audName) content = content.replace(/^(---\n)/, `$1character: ${audName}\n`);
     }
     // 如果该阶段有内容, 注入到对应章节
-    if (stageContent && stage !== "inspiration") {
+    if (stageContent) {
       const sf = WorkflowManager.STAGE_FIELDS[stage];
       if (sf) {
-        const sectionRe = new RegExp(`(##\\s+${sf.section}[^\\n]*\\n)`, "");
+        // 宽容匹配章节标题: ## 文案 后紧跟换行 (兼容 \r\n)
+        const sectionRe = new RegExp(`(##\\s+${sf.section}[^\\n\\r]*\\r?\\n)`, "");
         if (sectionRe.test(content)) {
           content = content.replace(sectionRe, `$1\n${stageContent}\n`);
+        } else {
+          // 章节标题匹配不到, 在文末追加该章节
+          content = content.replace(/\s+$/, "") + `\n\n## ${sf.section}\n\n${stageContent}\n`;
         }
       }
     }
     const file = await this.plugin.app.vault.create(`${workFolder}/${finalTitle}.md`, content);
-    // 所有作品都创建逻辑线脚本 (统一放脚本文件夹)
-    const scriptFolder = this.getScriptFolder();
-    await this.ensureFolder(scriptFolder);
-    const sc = `---\ntype: edit-flow-script\nwork: "[[${finalTitle}]]"\ncreated: ${todayStr()}\ntags:\n  - edit-flow/script\n---\n\n# ${finalTitle} - 逻辑线\n\n> 侧边栏逻辑线视图编辑节点\n`;
-    const scriptFile = await this.plugin.app.vault.create(`${scriptFolder}/${finalTitle}-脚本.md`, sc);
-    await this.updateFrontmatter(file, { script: `[[${scriptFile.basename}]]` });
     await this.registerWork(file, mainCategory, subType, stage, audience);
-    return { file, scriptFile, subType: st, mainCategory: cat };
+    return { file, subType: st, mainCategory: cat };
   }
   async updateFrontmatter(file, updates) { await this.plugin.app.fileManager.processFrontMatter(file, (fm) => Object.assign(fm, updates)); }
   async registerWork(file, mainCategory, subType, stage, audience = "") {
@@ -307,6 +307,7 @@ class WorkflowManager {
   // 作品对象 (目标受众/创作对象)
   getAudiences() { return this.plugin.settings.audiences || []; }
   getAudience(id) { return this.getAudiences().find((a) => a.id === id); }
+  getAudienceByName(name) { return this.getAudiences().find((a) => a.name === name); }
   getWorksByAudience(audienceId) { return (this.plugin.settings.workIndex || []).filter((w) => w.audience === audienceId); }
   async setWorkAudience(workId, audienceId) {
     const idx = this.plugin.settings.workIndex || [];
@@ -316,7 +317,12 @@ class WorkflowManager {
     await this.plugin.saveSettings();
     try {
       const f = this.plugin.app.vault.getAbstractFileByPath(e.path);
-      if (f && f instanceof TFile) await this.updateFrontmatter(f, { "audience": audienceId || "" });
+      if (f && f instanceof TFile) {
+        // frontmatter 字段名 character, 存主角名字 (不是 id)
+        const aud = this.getAudience(audienceId);
+        const audName = aud ? aud.name : "";
+        await this.updateFrontmatter(f, { "character": audName });
+      }
     } catch (err) {}
   }
   listWorks() { return this.plugin.settings.workIndex || []; }
@@ -376,7 +382,10 @@ class WorkflowManager {
         const progress = fm.progress || "not-started";
         const publishDate = fm["publish-date"] || null;
         const publishPlatforms = fm["publish-platforms"] || [];
-        const audience = fm.audience || "";
+        // frontmatter 字段名 character, 存的是主角名字, 转成 id 存入 workIndex
+        const audName = fm.character || "";
+        const audObj = audName ? this.getAudienceByName(audName) : null;
+        const audience = audObj ? audObj.id : "";
         if (!indexedPaths.has(f.path)) {
           // 新增
           idx.push({
@@ -679,46 +688,59 @@ class ToolsView extends ItemView {
   async tlLoadScript() {
     this.tlNodes = []; this.tlScriptFile = null;
     if (!this.tlActiveWorkFile) return;
-    // 先用 metadataCache, 读不到则直接读文件内容解析 frontmatter (兼容新文件 metadataCache 未更新)
-    let fm = this.plugin.app.metadataCache.getFileCache(this.tlActiveWorkFile)?.frontmatter;
-    if (!fm) {
-      // fallback: 直接读文件内容解析 frontmatter
+    // 逻辑线直接存在作品文件里 (## 逻辑线 章节), 不再读外部脚本文件
+    this.tlScriptFile = this.tlActiveWorkFile;
+    try {
       const content = await this.plugin.app.vault.read(this.tlActiveWorkFile);
-      const parsed = parseFrontmatter(content);
-      fm = parsed.fm;
-    }
-    if (fm.script) {
-      const m = String(fm.script).match(/\[\[([^\]]+)\]\]/);
-      if (m) {
-        // 先用 Obsidian 链接解析查找, 找不到则全局按文件名搜索
-        let f = this.plugin.app.metadataCache.getFirstLinkpathDest(m[1], this.tlActiveWorkFile.path);
-        if (!f || !(f instanceof TFile)) {
-          const all = this.plugin.app.vault.getMarkdownFiles();
-          f = all.find((x) => x.basename === m[1]);
-        }
-        if (f && f instanceof TFile) { this.tlScriptFile = f; this.tlNodes = this.tlExtractNodes(await this.plugin.app.vault.read(f)); }
-      }
-    }
+      this.tlNodes = this.tlExtractNodes(content);
+    } catch (e) { this.tlNodes = []; }
   }
+  // 从作品文件内容里提取 ## 逻辑线 章节的节点
   tlExtractNodes(content) {
-    const { body } = parseFrontmatter(content); const nodes = []; const lines = body.split(/\r?\n/);
+    const { body } = parseFrontmatter(content);
+    // 提取 ## 逻辑线 章节 (到下一个 ## 或文末)
+    const secRe = /##\s+逻辑线[^\n\r]*\r?\n([\s\S]*?)(?=\n##\s|$)/;
+    const m = body.match(secRe);
+    const section = m ? m[1] : "";
+    const nodes = [];
+    const lines = section.split(/\r?\n/);
     let cur = null, buf = [];
     for (const line of lines) {
-      // 兼容老格式: ## 时间 标题 / 新格式: ## 标题
-      const m = line.match(/^##\s+(?:(\d{1,2}:\d{2}(?::\d{2})?)\s*)?([^:]*)$/);
-      if (m) { if (cur) { cur.content = buf.join("\n").trim(); nodes.push(cur); } cur = { id: uid(), title: (m[2] || m[1] || "").trim(), content: "", note: "" }; buf = []; }
-      else if (line.startsWith("> ") && cur) cur.note += line.slice(2) + "\n";
-      else if (cur) buf.push(line);
+      // 兼容老格式: ## 时间 标题 / 新格式: ### 标题 (章节内用三级标题)
+      const nm = line.match(/^###\s+(.+)$/);
+      if (nm) {
+        if (cur) { cur.content = buf.join("\n").trim(); nodes.push(cur); }
+        cur = { id: uid(), title: nm[1].trim(), content: "", note: "" }; buf = [];
+      } else if (line.startsWith("> ") && cur) {
+        cur.note += line.slice(2) + "\n";
+      } else if (cur) {
+        buf.push(line);
+      }
     }
     if (cur) { cur.content = buf.join("\n").trim(); nodes.push(cur); }
     return nodes;
   }
   async tlSaveNodes() {
     if (!this.tlScriptFile || !this.tlActiveWorkFile) return;
-    let body = `# ${this.tlActiveWorkFile.basename} - 逻辑线\n\n> 侧边栏逻辑线视图编辑节点\n\n`;
-    this.tlNodes.forEach((n, i) => { body += `## ${n.title || ("节点" + (i+1))}\n\n`; if (n.content) body += `${n.content}\n\n`; if (n.note) body += `> ${n.note}\n\n`; });
-    const fm = `---\ntype: edit-flow-script\nwork: "[[${this.tlActiveWorkFile.basename}]]"\ncreated: ${todayStr()}\ntags:\n  - edit-flow/script\n---\n\n`;
-    await this.plugin.app.vault.modify(this.tlScriptFile, fm + body);
+    // 构造节点章节内容
+    let nodesBody = "";
+    this.tlNodes.forEach((n) => {
+      nodesBody += `### ${n.title || "节点"}\n\n`;
+      if (n.content) nodesBody += `${n.content}\n\n`;
+      if (n.note) nodesBody += `> ${n.note}\n\n`;
+    });
+    if (!nodesBody.trim()) nodesBody = "> 侧边栏逻辑线视图编辑节点\n";
+    // 读取当前作品文件, 替换或插入 ## 逻辑线 章节
+    const file = this.tlActiveWorkFile;
+    let content = await this.plugin.app.vault.read(file);
+    const secRe = /##\s+逻辑线[\s\S]*?(?=\n##\s|$)/;
+    const newSection = `## 逻辑线\n\n${nodesBody.trimEnd()}\n`;
+    if (secRe.test(content)) {
+      content = content.replace(secRe, newSection);
+    } else {
+      content = content.replace(/\s+$/, "") + `\n\n${newSection}`;
+    }
+    await this.plugin.app.vault.modify(file, content);
   }
 
   renderTimeline() {
@@ -736,21 +758,9 @@ class ToolsView extends ItemView {
     const saveBtn = tools.createEl("button", { cls: "ef-btn ef-btn-icon" });
     setLucideIcon(saveBtn, "save"); saveBtn.title = "保存";
     saveBtn.onclick = async () => { await this.tlSaveNodes(); new Notice("已保存"); };
-    if (!this.tlScriptFile) {
+    if (!this.tlActiveWorkFile) {
       const empty = c.createDiv({ cls: "ef-empty-state" });
-      empty.createEl("p", { cls: "ef-muted" }).textContent = "当前作品没有关联逻辑线";
-      const btn = empty.createEl("button", { cls: "mod-cta" });
-      btn.textContent = "创建逻辑线";
-      btn.onclick = async () => {
-        if (!this.tlActiveWorkFile) return;
-        const scriptFolder = this.plugin.workflow.getScriptFolder();
-        await this.plugin.workflow.ensureFolder(scriptFolder);
-        const content = `---\ntype: edit-flow-script\nwork: "[[${this.tlActiveWorkFile.basename}]]"\ncreated: ${todayStr()}\ntags:\n  - edit-flow/script\n---\n\n# ${this.tlActiveWorkFile.basename} - 逻辑线\n\n> 侧边栏逻辑线视图编辑节点\n`;
-        const f = await this.plugin.app.vault.create(`${scriptFolder}/${this.tlActiveWorkFile.basename}-脚本.md`, content);
-        await this.plugin.workflow.updateFrontmatter(this.tlActiveWorkFile, { script: `[[${f.basename}]]` });
-        this.tlScriptFile = f; this.tlNodes = []; this.renderTimeline();
-        new Notice(`逻辑线已创建: ${f.path}`);
-      };
+      empty.createEl("p", { cls: "ef-muted" }).textContent = "请先打开一个作品文件";
       return;
     }
     const addRow = c.createDiv({ cls: "ef-tl-addrow" });
@@ -1540,7 +1550,7 @@ class CreateWorkModal extends Modal {
     const create = btns.createEl("button", { cls: "mod-cta", text: "创建" });
     create.onclick = async () => {
       try {
-        const { file, scriptFile } = await this.plugin.workflow.createWork({
+        const { file } = await this.plugin.workflow.createWork({
           mainCategory: this.main, subType: this.sub, stage: this.stage,
           title: this.title, stageContent: this.stageContent, audience: this.audience,
         });
@@ -2283,25 +2293,54 @@ class EditFlowPlugin extends Plugin {
     });
   }
 
-  // 把作品文件夹下的脚本文件 (type: edit-flow-script) 迁移到脚本文件夹
+  // 迁移: 把外部脚本文件 (xxx-脚本.md) 的逻辑线内容合并回作品文件的 ## 逻辑线 章节
   async migrateScripts() {
     try {
-      const workFolder = this.workflow.getWorkFolder();
       const scriptFolder = this.workflow.getScriptFolder();
-      await this.workflow.ensureFolder(scriptFolder);
-      const folder = this.app.vault.getAbstractFileByPath(workFolder);
+      const folder = this.app.vault.getAbstractFileByPath(scriptFolder);
       if (!folder || !(folder instanceof TFolder)) return;
-      let moved = 0;
+      let merged = 0;
       for (const f of folder.children) {
-        if (f instanceof TFile && f.extension === "md" && f.basename.endsWith("-脚本")) {
-          const newPath = `${scriptFolder}/${f.name}`;
-          if (!this.app.vault.getAbstractFileByPath(newPath)) {
-            await this.app.vault.rename(f, newPath);
-            moved++;
+        if (!(f instanceof TFile) || f.extension !== "md" || !f.basename.endsWith("-脚本")) continue;
+        // 找对应的作品文件
+        const workName = f.basename.replace(/-脚本$/, "");
+        const workFile = this.app.vault.getMarkdownFiles().find((x) => x.basename === workName);
+        if (!workFile) continue;
+        // 读取脚本文件里的节点
+        const scriptContent = await this.app.vault.read(f);
+        // 简单提取脚本文件里的节点 (## 标题 + 内容 + > 备注)
+        const { body } = parseFrontmatter(scriptContent);
+        let nodesBody = "";
+        const lines = body.split(/\r?\n/);
+        let cur = null, buf = [];
+        for (const line of lines) {
+          const m = line.match(/^##\s+(.+)$/);
+          if (m && !m[1].startsWith(workName)) {
+            if (cur) { if (cur.content) nodesBody += `${cur.content}\n\n`; if (cur.note) nodesBody += `> ${cur.note}\n\n`; }
+            cur = { title: m[1].trim(), content: "", note: "" }; buf = [];
+          } else if (line.startsWith("> ") && cur) {
+            cur.note += line.slice(2) + "\n";
+          } else if (cur) {
+            buf.push(line);
           }
         }
+        if (cur) { cur.content = buf.join("\n").trim(); if (cur.content) nodesBody += `${cur.content}\n\n`; if (cur.note) nodesBody += `> ${cur.note}\n\n`; }
+        if (!nodesBody.trim()) continue;
+        // 合并到作品文件
+        let workContent = await this.app.vault.read(workFile);
+        const secRe = /##\s+逻辑线[\s\S]*?(?=\n##\s|$)/;
+        const newSection = `## 逻辑线\n\n${nodesBody.trimEnd()}\n`;
+        if (secRe.test(workContent)) {
+          workContent = workContent.replace(secRe, newSection);
+        } else {
+          workContent = workContent.replace(/\s+$/, "") + `\n\n${newSection}`;
+        }
+        await this.app.vault.modify(workFile, workContent);
+        // 删除外部脚本文件
+        await this.app.vault.trash(f, true);
+        merged++;
       }
-      if (moved > 0) new Notice(`已迁移 ${moved} 个脚本文件到脚本文件夹`);
+      if (merged > 0) new Notice(`已合并 ${merged} 个逻辑线到作品文件`);
     } catch (err) {}
   }
 
@@ -2457,6 +2496,11 @@ class EditFlowPlugin extends Plugin {
               newT = newT.includes("## 文案")
                 ? newT.replace(/## 文案/, "## 文案\n\n## 音乐/BGM")
                 : newT.replace(/\n*$/, "") + "\n\n## 音乐/BGM\n";
+              modified = true;
+            }
+            // 补充 ## 逻辑线 章节 (如果缺少)
+            if (!newT.includes("## 逻辑线")) {
+              newT = newT.replace(/\n*$/, "") + "\n\n## 逻辑线\n\n> 侧边栏逻辑线视图编辑节点\n";
               modified = true;
             }
             if (modified) await this.app.vault.modify(exist, newT);
