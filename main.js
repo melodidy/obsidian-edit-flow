@@ -98,11 +98,12 @@ const DEFAULT_SETTINGS = {
   accounts: [],
   // 作品对象 (目标受众/创作对象, 支持自定义)
   audiences: [],
-  inspirationTag: "灵感/作品",
   enableHandwriting: true,
   stickyNotes: [],
   enableAutoOpenTimeline: true,
   workIndex: [],
+  // 表格行颜色: { 文件路径: [颜色1, 颜色2, ...] }
+  gridRowColors: {},
   // 每周排期表 (全局模板: 周几做什么类型 + 发什么类型, 与单作品 publishDate 分开)
   // makeTypes / publishTypes 存子类 id 数组
   weeklySchedule: [
@@ -639,6 +640,8 @@ class ToolsView extends ItemView {
     super(leaf); this.plugin = plugin;
     this.activeTab = "timeline";
     this.tlNodes = []; this.tlDragSrcId = null; this.tlActiveWorkFile = null; this.tlScriptFile = null;
+    this.tlMode = "timeline"; // "timeline" | "grid"
+    this.tlGrid = { headers: ["列1", "列2", "列3"], rows: [] };
     this.inspQuery = "";
   }
   getViewType() { return VIEW_TOOLS; }
@@ -682,6 +685,7 @@ class ToolsView extends ItemView {
     if (wf !== this.tlActiveWorkFile) {
       this.tlActiveWorkFile = wf;
       await this.tlLoadScript();
+      if (this.tlMode === "grid") await this.tlLoadGrid();
       if (this.activeTab === "timeline") this.renderTimeline();
     }
   }
@@ -755,18 +759,30 @@ class ToolsView extends ItemView {
       titleEl.createSpan({ cls: "ef-tl-name" }).textContent = this.tlActiveWorkFile.basename;
     } else titleEl.createSpan({ cls: "ef-muted" }).textContent = "未选中作品";
     const tools = header.createDiv({ cls: "ef-tl-tools" });
+    // 模式切换: 时间轴 / 表格
+    const modeSwitch = tools.createDiv({ cls: "ef-tl-mode-switch" });
+    const tlBtn = modeSwitch.createEl("button", { cls: "ef-tl-mode-btn" + (this.tlMode === "timeline" ? " is-active" : "") });
+    setLucideIcon(tlBtn, "list"); tlBtn.title = "时间轴模式";
+    tlBtn.onclick = async () => { if (this.tlMode === "timeline") return; this.tlMode = "timeline"; this.renderTimeline(); };
+    const gridBtn = modeSwitch.createEl("button", { cls: "ef-tl-mode-btn" + (this.tlMode === "grid" ? " is-active" : "") });
+    setLucideIcon(gridBtn, "table"); gridBtn.title = "表格模式";
+    gridBtn.onclick = async () => { if (this.tlMode === "grid") return; this.tlMode = "grid"; await this.tlLoadGrid(); this.renderTimeline(); };
     const saveBtn = tools.createEl("button", { cls: "ef-btn ef-btn-icon" });
     setLucideIcon(saveBtn, "save"); saveBtn.title = "保存";
-    saveBtn.onclick = async () => { await this.tlSaveNodes(); new Notice("已保存"); };
+    saveBtn.onclick = async () => { if (this.tlMode === "grid") await this.tlSaveGrid(); else await this.tlSaveNodes(); new Notice("已保存"); };
     if (!this.tlActiveWorkFile) {
       const empty = c.createDiv({ cls: "ef-empty-state" });
       empty.createEl("p", { cls: "ef-muted" }).textContent = "请先打开一个作品文件";
       return;
     }
+    if (this.tlMode === "grid") { this._tlGridHost = c.createDiv({ cls: "ef-tl-grid-host" }); this.renderGrid(); return; }
     const addRow = c.createDiv({ cls: "ef-tl-addrow" });
     const titleInput = addRow.createEl("input", { cls: "ef-tl-title-input", attr: { placeholder: "节点标题 (可选, 回车添加)" } });
     const addNodeBtn = addRow.createEl("button", { cls: "mod-cta" });
     setLucideIcon(addNodeBtn, "plus"); addNodeBtn.appendText(" 添加");
+    const importBtn = addRow.createEl("button", { cls: "ef-btn" });
+    setLucideIcon(importBtn, "upload"); importBtn.appendText(" 导入歌词/文本");
+    importBtn.onclick = () => this.tlImportFromFile();
     const onAdd = () => { this.tlNodes.push({ id: uid(), title: titleInput.value.trim(), content: "", note: "" }); titleInput.value = ""; this.tlRenderNodes(); this.tlSaveNodes(); };
     addNodeBtn.onclick = onAdd;
     titleInput.onkeydown = (e) => { if (e.key === "Enter") onAdd(); };
@@ -774,23 +790,458 @@ class ToolsView extends ItemView {
     this.tlRenderNodes();
   }
 
+  // ===== 表格模式 =====
+  async tlLoadGrid() {
+    if (!this.tlActiveWorkFile) { this.tlGrid = { headers: ["列1", "列2", "列3"], rows: [] }; return; }
+    try {
+      const content = await this.plugin.app.vault.read(this.tlActiveWorkFile);
+      this.tlGrid = this.tlExtractGrid(content);
+    } catch (e) { this.tlGrid = { headers: ["列1", "列2", "列3"], rows: [] }; }
+  }
+  tlExtractGrid(content) {
+    const { body } = parseFrontmatter(content);
+    const secRe = /##\s+逻辑线表格[^\n\r]*\r?\n([\s\S]*?)(?=\n##\s|$)/;
+    const m = body.match(secRe);
+    if (!m) return { headers: ["列1", "列2", "列3"], rows: [] };
+    const lines = m[1].split(/\r?\n/).filter((l) => l.trim() && l.startsWith("|"));
+    if (lines.length < 2) return { headers: ["列1", "列2", "列3"], rows: [] };
+    const parseLine = (l) => l.replace(/^\|/, "").replace(/\|$/, "").split("|").map((c) => c.trim());
+    const headers = parseLine(lines[0]);
+    // 从 data.json 读取行颜色和折叠状态
+    const pathKey = this.tlActiveWorkFile.path;
+    const saved = (this.plugin.settings.gridRowColors && this.plugin.settings.gridRowColors[pathKey]) || { colors: [], collapsed: {} };
+    // 解析缩进前缀重建树形结构: » 表示一级子行, » » 表示二级
+    const rows = [];
+    const stack = []; // 用于追踪每层的父行
+    for (let i = 2; i < lines.length; i++) {
+      let cells = parseLine(lines[i]);
+      while (cells.length < headers.length) cells.push("");
+      // 解析第一列的缩进前缀
+      let indent = 0;
+      let firstCell = cells[0] || "";
+      while (firstCell.startsWith("» ")) { indent++; firstCell = firstCell.slice(2); }
+      cells[0] = firstCell;
+      const colorIdx = i - 2;
+      const node = { cells, color: (saved.colors && saved.colors[colorIdx]) || "", collapsed: false, children: [] };
+      // 找到正确的父节点
+      while (stack.length > indent) stack.pop();
+      if (stack.length === 0) { rows.push(node); }
+      else { stack[stack.length - 1].children.push(node); }
+      stack.push(node);
+      // 恢复折叠状态
+      const nodeKey = `${colorIdx}`;
+      if (saved.collapsed && saved.collapsed[nodeKey]) node.collapsed = true;
+    }
+    return { headers, rows };
+  }
+  // 扁平化树形结构用于保存: 返回 [{ cells, color }, ...]
+  tlFlattenGridRows() {
+    const result = [];
+    const walk = (nodes, depth) => {
+      for (const n of nodes) {
+        const cells = n.cells.slice();
+        if (depth > 0) cells[0] = "» ".repeat(depth) + (cells[0] || "");
+        result.push({ cells, color: n.color || "", collapsed: n.collapsed || false });
+        if (n.children && n.children.length > 0) walk(n.children, depth + 1);
+      }
+    };
+    walk(this.tlGrid.rows, 0);
+    return result;
+  }
+  async tlSaveGrid() {
+    if (!this.tlActiveWorkFile) return;
+    const flat = this.tlFlattenGridRows();
+    // 写纯表格到笔记 (含缩进前缀)
+    let tableBody = "| " + this.tlGrid.headers.join(" | ") + " |\n";
+    tableBody += "|" + this.tlGrid.headers.map(() => "---").join("|") + "|\n";
+    for (const row of flat) {
+      const cells = row.cells.slice(0, this.tlGrid.headers.length);
+      while (cells.length < this.tlGrid.headers.length) cells.push("");
+      tableBody += "| " + cells.join(" | ") + " |\n";
+    }
+    const newSection = `## 逻辑线表格\n\n${tableBody.trimEnd()}\n`;
+    const file = this.tlActiveWorkFile;
+    let content = await this.plugin.app.vault.read(file);
+    const secRe = /##\s+逻辑线表格[\s\S]*?(?=\n##\s|$)/;
+    if (secRe.test(content)) content = content.replace(secRe, newSection);
+    else content = content.replace(/\s+$/, "") + `\n\n${newSection}`;
+    await this.plugin.app.vault.modify(file, content);
+    // 保存行颜色和折叠状态到 data.json
+    if (!this.plugin.settings.gridRowColors) this.plugin.settings.gridRowColors = {};
+    this.plugin.settings.gridRowColors[file.path] = {
+      colors: flat.map((r) => r.color || ""),
+      collapsed: flat.reduce((acc, r, i) => { if (r.collapsed) acc[i] = true; return acc; }, {}),
+    };
+    await this.plugin.saveSettings();
+  }
+
+  renderGrid() {
+    const c = this._tlGridHost; if (!c) return; c.empty();
+    const wrap = c.createDiv({ cls: "ef-tl-grid-wrap" });
+    const toolbar = wrap.createDiv({ cls: "ef-tl-grid-toolbar" });
+    const addRowBtn = toolbar.createEl("button", { cls: "ef-btn ef-btn-sm" });
+    setLucideIcon(addRowBtn, "plus"); addRowBtn.appendText(" 行");
+    addRowBtn.onclick = async () => { this.tlGrid.rows.push(this.tlNewRow()); this.renderGrid(); await this.tlSaveGrid(); };
+    const addColBtn = toolbar.createEl("button", { cls: "ef-btn ef-btn-sm" });
+    setLucideIcon(addColBtn, "plus"); addColBtn.appendText(" 列");
+    addColBtn.onclick = async () => { this.tlGrid.headers.push("新列"); this.tlWalkAllRows((r) => r.cells.push("")); this.renderGrid(); await this.tlSaveGrid(); };
+    const importBtn = toolbar.createEl("button", { cls: "ef-btn ef-btn-sm" });
+    setLucideIcon(importBtn, "upload"); importBtn.appendText(" 导入歌词/文本");
+    importBtn.onclick = () => this.tlGridImportFromFile();
+    const table = wrap.createEl("table", { cls: "ef-tl-grid-table" });
+    const thead = table.createEl("thead");
+    const headRow = thead.createEl("tr");
+    const headCorner = headRow.createEl("th", { cls: "ef-tl-grid-corner" });
+    this.tlGrid.headers.forEach((h, ci) => {
+      const th = headRow.createEl("th", { cls: "ef-tl-grid-th" });
+      const input = th.createEl("input", { cls: "ef-tl-grid-head-input", attr: { value: h, placeholder: "列名" } });
+      input.onchange = async () => { this.tlGrid.headers[ci] = input.value; await this.tlSaveGrid(); };
+      const colOps = th.createDiv({ cls: "ef-tl-grid-col-ops" });
+      const insLeft = colOps.createEl("button", { cls: "ef-btn ef-btn-icon ef-btn-sm", attr: { title: "左侧插入列" } });
+      setLucideIcon(insLeft, "chevron-left"); insLeft.onclick = async () => { this.tlGrid.headers.splice(ci, 0, "新列"); this.tlWalkAllRows((r) => r.cells.splice(ci, 0, "")); this.renderGrid(); await this.tlSaveGrid(); };
+      const insRight = colOps.createEl("button", { cls: "ef-btn ef-btn-icon ef-btn-sm", attr: { title: "右侧插入列" } });
+      setLucideIcon(insRight, "chevron-right"); insRight.onclick = async () => { this.tlGrid.headers.splice(ci + 1, 0, "新列"); this.tlWalkAllRows((r) => r.cells.splice(ci + 1, 0, "")); this.renderGrid(); await this.tlSaveGrid(); };
+      const delCol = colOps.createEl("button", { cls: "ef-btn ef-btn-icon ef-btn-sm", attr: { title: "删除此列" } });
+      setLucideIcon(delCol, "trash-2"); delCol.onclick = async () => { if (this.tlGrid.headers.length <= 1) { new Notice("至少保留一列"); return; } this.tlGrid.headers.splice(ci, 1); this.tlWalkAllRows((r) => r.cells.splice(ci, 1)); this.renderGrid(); await this.tlSaveGrid(); };
+    });
+    const tbody = table.createEl("tbody");
+    this._renderGridRows(tbody, this.tlGrid.rows, 0);
+    if (this.tlGrid.rows.length === 0) {
+      const emptyRow = tbody.createEl("tr");
+      const emptyCell = emptyRow.createEl("td", { cls: "ef-tl-grid-empty", attr: { colspan: String(this.tlGrid.headers.length + 1) } });
+      emptyCell.textContent = '空表格, 点击上方"添加行"开始';
+    }
+  }
+
+  // 递归渲染行 (含子行)
+  _renderGridRows(tbody, rows, depth, parentPath) {
+    parentPath = parentPath || [];
+    rows.forEach((row, ri) => {
+      const rowPath = parentPath.concat(ri);
+      const tr = tbody.createEl("tr");
+      tr.dataset.depth = depth;
+      tr.dataset.rowpath = rowPath.join("-");
+      tr.style.setProperty("--row-depth", depth);
+      // 颜色: 自定义色优先, 否则按层级取默认莫兰迪色
+      const rowColor = row.color || MORANDI_LIST[depth % MORANDI_LIST.length];
+      tr.style.background = rowColor + "44";
+      tr.dataset.defaultColor = rowColor;
+      // 拖拽换序
+      tr.draggable = true;
+      tr.addEventListener("dragstart", (e) => { this._tlGridDragPath = rowPath.join("-"); tr.classList.add("ef-tl-grid-dragging"); e.dataTransfer.effectAllowed = "move"; });
+      tr.addEventListener("dragend", () => { tr.classList.remove("ef-tl-grid-dragging"); tbody.querySelectorAll(".ef-tl-grid-drag-over").forEach((n) => n.classList.remove("ef-tl-grid-drag-over")); });
+      tr.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        if (this._tlGridDragPath && this._tlGridDragPath !== rowPath.join("-")) {
+          // 判断鼠标在行的上半还是下半
+          const rect = tr.getBoundingClientRect();
+          const isUpper = (e.clientY - rect.top) < rect.height / 2;
+          tr.classList.remove("ef-tl-grid-drag-over-bottom");
+          if (isUpper) { tr.classList.add("ef-tl-grid-drag-over-top"); tr.classList.remove("ef-tl-grid-drag-over-bottom"); }
+          else { tr.classList.add("ef-tl-grid-drag-over-bottom"); tr.classList.remove("ef-tl-grid-drag-over-top"); }
+        }
+      });
+      tr.addEventListener("dragleave", () => { tr.classList.remove("ef-tl-grid-drag-over-top", "ef-tl-grid-drag-over-bottom"); });
+      tr.addEventListener("drop", async (e) => {
+        e.preventDefault();
+        const isOverTop = tr.classList.contains("ef-tl-grid-drag-over-top");
+        tr.classList.remove("ef-tl-grid-drag-over-top", "ef-tl-grid-drag-over-bottom");
+        const fromPath = this._tlGridDragPath;
+        if (!fromPath || fromPath === rowPath.join("-")) return;
+        // 不能拖到自己的子行里
+        if (rowPath.join("-").startsWith(fromPath + "-")) { new Notice("不能拖到自己的子行内"); return; }
+        // 通过路径查找源行
+        const fromParts = fromPath.split("-").map(Number);
+        const toParts = rowPath.slice();
+        // 获取源行数据
+        let fromArr = this.tlGrid.rows;
+        let fromNode;
+        for (let i = 0; i < fromParts.length; i++) {
+          fromNode = fromArr[fromParts[i]];
+          if (i < fromParts.length - 1) fromArr = fromNode.children;
+        }
+        const [moved] = fromArr.splice(fromParts[fromParts.length - 1], 1);
+        // 重新查找目标位置 (源行被移除后索引可能变化)
+        let toArr = this.tlGrid.rows;
+        let toNode;
+        for (let i = 0; i < toParts.length; i++) {
+          // 如果源行在同一层级且在目标之前, 索引需要调整
+          let idx = toParts[i];
+          if (fromParts.length <= i + 1 && fromParts[i] < idx && fromParts.slice(0, i).join("-") === toParts.slice(0, i).join("-")) idx--;
+          toNode = toArr[idx];
+          if (i < toParts.length - 1) toArr = toNode.children;
+        }
+        let toIdx = toParts[toParts.length - 1];
+        if (fromParts.length === toParts.length && fromParts.slice(0, -1).join("-") === toParts.slice(0, -1).join("-") && fromParts[fromParts.length - 1] < toIdx) toIdx--;
+        if (!isOverTop) toIdx++;
+        toArr.splice(toIdx, 0, moved);
+        this._tlGridDragPath = null;
+        this.renderGrid();
+        await this.tlSaveGrid();
+        new Notice("已调整顺序");
+      });
+      // 行首操作格: 两行按钮, 每行用 flex 左对齐
+      const rowOpsCell = tr.createEl("td", { cls: "ef-tl-grid-row-ops" });
+      // 第一行: 上方插入/下方插入/删除
+      const row1 = rowOpsCell.createDiv({ cls: "ef-tl-grid-row-ops-line" });
+      const insAbove = row1.createEl("button", { cls: "ef-btn ef-btn-icon ef-btn-sm", attr: { title: "上方插入同级行" } });
+      setLucideIcon(insAbove, "chevron-up"); insAbove.onclick = async () => { rows.splice(ri, 0, this.tlNewRow()); this.renderGrid(); await this.tlSaveGrid(); };
+      const insBelow = row1.createEl("button", { cls: "ef-btn ef-btn-icon ef-btn-sm", attr: { title: "下方插入同级行" } });
+      setLucideIcon(insBelow, "chevron-down"); insBelow.onclick = async () => { rows.splice(ri + 1, 0, this.tlNewRow()); this.renderGrid(); await this.tlSaveGrid(); };
+      const delRow = row1.createEl("button", { cls: "ef-btn ef-btn-icon ef-btn-sm", attr: { title: "删除此行(含子行)" } });
+      setLucideIcon(delRow, "trash-2"); delRow.onclick = async () => { rows.splice(ri, 1); this.renderGrid(); await this.tlSaveGrid(); };
+      // 第二行: 颜色/添加子行/展开收起
+      const row2 = rowOpsCell.createDiv({ cls: "ef-tl-grid-row-ops-line" });
+      const colorBtn = row2.createEl("button", { cls: "ef-btn ef-btn-icon ef-btn-sm ef-tl-grid-color-btn", attr: { title: "行颜色" } });
+      if (row.color) {
+        colorBtn.style.setProperty("background", row.color, "important");
+        colorBtn.style.setProperty("border-color", row.color, "important");
+        colorBtn.innerHTML = "";
+      } else {
+        // 显示默认层级色 (半透明 + 虚线边框)
+        colorBtn.style.setProperty("background", rowColor + "66", "important");
+        colorBtn.style.setProperty("border-color", rowColor, "important");
+        colorBtn.style.borderStyle = "dashed";
+        setLucideIcon(colorBtn, "palette");
+      }
+      colorBtn.onclick = () => this.tlPickRowColor(row, colorBtn);
+      const addChildBtn = row2.createEl("button", { cls: "ef-btn ef-btn-icon ef-btn-sm", attr: { title: "添加子行" } });
+      setLucideIcon(addChildBtn, "corner-down-right");
+      addChildBtn.onclick = async () => {
+        if (!row.children) row.children = [];
+        row.children.push(this.tlNewRow());
+        row.collapsed = false;
+        this.renderGrid();
+        await this.tlSaveGrid();
+      };
+      const hasChildren = row.children && row.children.length > 0;
+      if (hasChildren) {
+        const toggleBtn = row2.createEl("button", { cls: "ef-btn ef-btn-icon ef-btn-sm ef-tl-grid-toggle", attr: { title: row.collapsed ? "展开" : "收起" } });
+        setLucideIcon(toggleBtn, row.collapsed ? "chevron-right" : "chevron-down");
+        toggleBtn.onclick = async () => { row.collapsed = !row.collapsed; this.renderGrid(); await this.tlSaveGrid(); };
+      } else {
+        row2.createDiv({ cls: "ef-tl-grid-toggle-placeholder" });
+      }
+      // 数据单元格 (第一列加缩进)
+      this.tlGrid.headers.forEach((h, ci) => {
+        const td = tr.createEl("td", { cls: "ef-tl-grid-td" });
+        if (ci === 0 && depth > 0) td.style.paddingLeft = (8 + depth * 20) + "px";
+        const ta = td.createEl("textarea", { cls: "ef-tl-grid-cell", attr: { placeholder: "" } });
+        ta.value = row.cells[ci] || "";
+        ta.oninput = debounce(() => { row.cells[ci] = ta.value; this.tlSaveGrid(); }, 600);
+      });
+      // 递归渲染子行 (如果未收起)
+      if (hasChildren && !row.collapsed) {
+        this._renderGridRows(tbody, row.children, depth + 1, rowPath);
+      }
+    });
+  }
+
+  // 遍历所有行 (含子行)
+  tlWalkAllRows(fn) {
+    const walk = (nodes) => { for (const n of nodes) { fn(n); if (n.children) walk(n.children); } };
+    walk(this.tlGrid.rows);
+  }
+  tlNewRow() { return { cells: this.tlGrid.headers.map(() => ""), color: "", collapsed: false, children: [] }; }
+
+  // 行颜色选择器
+  tlPickRowColor(row, anchorBtn) {
+    const modal = new Modal(this.app);
+    modal.titleEl.textContent = "选择行颜色";
+    modal.modalEl.style.maxWidth = "320px";
+    const palette = modal.contentEl.createDiv({ cls: "ef-tl-grid-color-palette" });
+    const clearBtn = palette.createEl("button", { cls: "ef-tl-grid-color-swatch ef-tl-grid-color-clear", attr: { title: "使用默认层级色" } });
+    setLucideIcon(clearBtn, "rotate-ccw");
+    clearBtn.onclick = async () => { row.color = ""; this.renderGrid(); await this.tlSaveGrid(); modal.close(); };
+    const colors = ["#B5B682", "#9CA8B8", "#C8B8A0", "#A8B8A0", "#D4B5B0", "#B8A8C8", "#D8C8B0", "#A8C0B8", "#E8B8B8", "#7EC8E3", "#FFD580", "#C8E6A0"];
+    colors.forEach((c) => {
+      const sw = palette.createEl("button", { cls: "ef-tl-grid-color-swatch", attr: { style: `background:${c}!important;border-color:${c}!important`, title: c } });
+      sw.onclick = async () => { row.color = c; this.renderGrid(); await this.tlSaveGrid(); modal.close(); };
+    });
+    modal.open();
+  }
+
+  // 从 lrc / txt 文件导入逻辑线节点
+  async tlImportFromFile() {
+    const modal = new Modal(this.app);
+    modal.titleEl.textContent = "导入歌词/文本到逻辑线";
+    modal.modalEl.style.maxWidth = "600px";
+    const desc = modal.contentEl.createDiv({ cls: "ef-muted", attr: { style: "margin-bottom:12px;" } });
+    desc.textContent = "选择素材库里的 lrc 歌词或 txt 文本文件, 每行/每句歌词生成一个逻辑线节点。";
+    // 文件列表
+    const listEl = modal.contentEl.createDiv({ cls: "ef-tl-import-list" });
+    const root = this.plugin.settings.rootFolder;
+    const matFolder = `${root}/${this.plugin.settings.materialFolder}`;
+    const folder = this.app.vault.getAbstractFileByPath(matFolder);
+    let files = [];
+    const collect = (f) => {
+      if (f instanceof TFile) { const ext = f.extension?.toLowerCase(); if (ext === "lrc" || ext === "txt") files.push(f); }
+      else if (f instanceof TFolder) for (const child of f.children) collect(child);
+    };
+    if (folder instanceof TFolder) collect(folder);
+    if (files.length === 0) {
+      listEl.createEl("p", { cls: "ef-muted" }).textContent = "素材库里没有 lrc 或 txt 文件, 请先放入素材文件夹";
+    } else {
+      for (const f of files) {
+        const row = listEl.createDiv({ cls: "ef-tl-import-row" });
+        const ic = row.createDiv({ cls: "ef-insp-row-icon" });
+        setLucideIcon(ic, f.extension === "lrc" ? "music" : "file-text");
+        const nameEl = row.createDiv({ cls: "ef-insp-row-name" });
+        const relPath = f.path.startsWith(matFolder + "/") ? f.path.slice(matFolder.length + 1) : f.name;
+        nameEl.textContent = relPath;
+        nameEl.title = f.path;
+        const importMode = row.createEl("select", { cls: "ef-tl-import-mode" });
+        importMode.innerHTML = '<option value="append">追加到末尾</option><option value="replace">替换全部</option>';
+        const btn = row.createEl("button", { cls: "mod-cta ef-btn-sm" });
+        btn.textContent = "导入";
+        btn.onclick = async () => {
+          const content = await this.app.vault.read(f);
+          let newNodes = [];
+          if (f.extension === "lrc") {
+            // lrc: [mm:ss.xxx] 歌词 → 每句一个节点
+            const lines = content.split(/\r?\n/);
+            for (const line of lines) {
+              const m = line.match(/\[(\d{2}):(\d{2})\.?(\d{0,3})\]\s*(.*)/);
+              if (m) {
+                const mm = m[1], ss = m[2];
+                const lyric = (m[4] || "").trim();
+                if (lyric) newNodes.push({ id: uid(), title: `${mm}:${ss}`, content: lyric, note: "" });
+              }
+            }
+          } else {
+            // txt: 按空行分段, 每段一个节点
+            const paragraphs = content.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
+            if (paragraphs.length > 1) {
+              paragraphs.forEach((p, i) => newNodes.push({ id: uid(), title: `段落 ${i + 1}`, content: p, note: "" }));
+            } else {
+              // 没有空行分段, 按每行一个节点
+              const lines = content.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+              lines.forEach((l, i) => newNodes.push({ id: uid(), title: `第 ${i + 1} 行`, content: l, note: "" }));
+            }
+          }
+          if (newNodes.length === 0) { new Notice("文件内容为空或格式不支持"); return; }
+          if (importMode.value === "replace") this.tlNodes = newNodes;
+          else this.tlNodes.push(...newNodes);
+          this.tlRenderNodes();
+          await this.tlSaveNodes();
+          modal.close();
+          new Notice(`已导入 ${newNodes.length} 个节点`);
+        };
+      }
+    }
+    modal.open();
+  }
+
+  // 从 lrc / txt 文件导入到表格模式
+  async tlGridImportFromFile() {
+    const modal = new Modal(this.app);
+    modal.titleEl.textContent = "导入歌词/文本到表格";
+    modal.modalEl.style.maxWidth = "600px";
+    const desc = modal.contentEl.createDiv({ cls: "ef-muted", attr: { style: "margin-bottom:12px;" } });
+    desc.textContent = "选择素材库里的 lrc 歌词或 txt 文本文件。lrc 会按时间戳分句生成行, txt 按段落或行生成行。";
+    // 导入选项
+    const optRow = modal.contentEl.createDiv({ cls: "ef-tl-grid-import-opts", attr: { style: "display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap;" } });
+    optRow.createDiv({ cls: "ef-muted" }).textContent = "导入模式:";
+    const importMode = optRow.createEl("select", { cls: "ef-tl-title-input", attr: { style: "flex:0 0 auto;" } });
+    importMode.innerHTML = '<option value="append">追加到末尾</option><option value="replace">替换全部</option>';
+    optRow.createDiv({ cls: "ef-muted" }).textContent = "lrc 列结构:";
+    const lrcColsMode = optRow.createEl("select", { cls: "ef-tl-title-input", attr: { style: "flex:0 0 auto;" } });
+    lrcColsMode.innerHTML = '<option value="auto">自动(空表时设为时间/歌词)</option><option value="keep">保持现有列结构</option>';
+    // 文件列表
+    const listEl = modal.contentEl.createDiv({ cls: "ef-tl-import-list" });
+    const root = this.plugin.settings.rootFolder;
+    const matFolder = `${root}/${this.plugin.settings.materialFolder}`;
+    const folder = this.app.vault.getAbstractFileByPath(matFolder);
+    let files = [];
+    const collect = (f) => {
+      if (f instanceof TFile) { const ext = f.extension?.toLowerCase(); if (ext === "lrc" || ext === "txt") files.push(f); }
+      else if (f instanceof TFolder) for (const child of f.children) collect(child);
+    };
+    if (folder instanceof TFolder) collect(folder);
+    if (files.length === 0) {
+      listEl.createEl("p", { cls: "ef-muted" }).textContent = "素材库里没有 lrc 或 txt 文件, 请先放入素材文件夹";
+    } else {
+      for (const f of files) {
+        const row = listEl.createDiv({ cls: "ef-tl-import-row" });
+        const ic = row.createDiv({ cls: "ef-insp-row-icon" });
+        setLucideIcon(ic, f.extension === "lrc" ? "music" : "file-text");
+        const nameEl = row.createDiv({ cls: "ef-insp-row-name" });
+        const relPath = f.path.startsWith(matFolder + "/") ? f.path.slice(matFolder.length + 1) : f.name;
+        nameEl.textContent = relPath;
+        nameEl.title = f.path;
+        const btn = row.createEl("button", { cls: "mod-cta ef-btn-sm" });
+        btn.textContent = "导入";
+        btn.onclick = async () => {
+          const content = await this.app.vault.read(f);
+          let newRows = [];
+          if (f.extension === "lrc") {
+            // lrc: [mm:ss.xxx] 歌词 → 每句一个表格行
+            const lines = content.split(/\r?\n/);
+            for (const line of lines) {
+              const m = line.match(/\[(\d{2}):(\d{2})\.?(\d{0,3})\]\s*(.*)/);
+              if (m) {
+                const mm = m[1], ss = m[2];
+                const lyric = (m[4] || "").trim();
+                if (lyric) {
+                  const r = this.tlNewRow();
+                  r.cells[0] = `${mm}:${ss}`;
+                  r.cells[1] = lyric;
+                  newRows.push(r);
+                }
+              }
+            }
+            // 自动模式: 空表时设置列头为 时间/歌词
+            if (lrcColsMode.value === "auto" && this.tlGrid.rows.length === 0) {
+              const isDefault = this.tlGrid.headers.length === 3 && this.tlGrid.headers.every((h, i) => h === ["列1", "列2", "列3"][i]);
+              if (isDefault) this.tlGrid.headers = ["时间", "歌词", ""];
+            }
+          } else {
+            // txt: 按空行分段, 每段一个表格行; 无空行则按行
+            const paragraphs = content.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
+            if (paragraphs.length > 1) {
+              paragraphs.forEach((p) => { const r = this.tlNewRow(); r.cells[0] = p; newRows.push(r); });
+            } else {
+              const lines = content.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+              lines.forEach((l) => { const r = this.tlNewRow(); r.cells[0] = l; newRows.push(r); });
+            }
+          }
+          if (newRows.length === 0) { new Notice("文件内容为空或格式不支持"); return; }
+          if (importMode.value === "replace") this.tlGrid.rows = newRows;
+          else this.tlGrid.rows.push(...newRows);
+          this.renderGrid();
+          await this.tlSaveGrid();
+          modal.close();
+          new Notice(`已导入 ${newRows.length} 行`);
+        };
+      }
+    }
+    modal.open();
+  }
+
   tlRenderNodes() {
     const c = this.tlNodesContainer; if (!c) return; c.empty();
     if (this.tlNodes.length === 0) { c.createEl("p", { cls: "ef-muted ef-tl-empty" }).textContent = "暂无节点"; return; }
+    // 拖拽状态
+    this._tlDragId = null;
     this.tlNodes.forEach((node, idx) => {
       const row = c.createDiv({ cls: "ef-tl-node" });
       row.dataset.id = node.id;
+      row.draggable = true;
       const left = row.createDiv({ cls: "ef-tl-node-left" });
       // 序号 (不依赖时间)
       const numEl = left.createDiv({ cls: "ef-tl-num" });
       numEl.textContent = String(idx + 1).padStart(2, "0");
-      // 上下移动按钮 (替代拖拽, 兼容移动端)
+      // 上下移动按钮 (兼容移动端)
       const upBtn = left.createEl("button", { cls: "ef-btn ef-btn-icon ef-btn-sm ef-tl-move-btn" });
       setLucideIcon(upBtn, "chevron-up"); upBtn.title = "上移";
       upBtn.onclick = () => this.tlMoveNode(node.id, -1);
       const downBtn = left.createEl("button", { cls: "ef-btn ef-btn-icon ef-btn-sm ef-tl-move-btn" });
       setLucideIcon(downBtn, "chevron-down"); downBtn.title = "下移";
       downBtn.onclick = () => this.tlMoveNode(node.id, 1);
+      // 拖拽手柄 (桌面端)
+      const dragHandle = left.createDiv({ cls: "ef-tl-drag-handle" });
+      setLucideIcon(dragHandle, "grip-vertical");
+      dragHandle.title = "拖动排序";
       const line = row.createDiv({ cls: "ef-tl-line" });
       line.createDiv({ cls: "ef-tl-dot" }); line.createDiv({ cls: "ef-tl-bar" });
       const card = row.createDiv({ cls: "ef-tl-card" });
@@ -810,6 +1261,24 @@ class ToolsView extends ItemView {
       const noteTa = card.createEl("textarea", { cls: "ef-tl-card-note-input", attr: { placeholder: "备注..." } });
       noteTa.value = node.note || "";
       noteTa.oninput = debounce(() => { node.note = noteTa.value; this.tlSaveNodes(); }, 600);
+      // 拖拽事件
+      row.addEventListener("dragstart", (e) => { this._tlDragId = node.id; row.classList.add("ef-tl-dragging"); e.dataTransfer.effectAllowed = "move"; });
+      row.addEventListener("dragend", () => { row.classList.remove("ef-tl-dragging"); c.querySelectorAll(".ef-tl-node").forEach((n) => n.classList.remove("ef-tl-drag-over")); });
+      row.addEventListener("dragover", (e) => { e.preventDefault(); if (this._tlDragId && this._tlDragId !== node.id) row.classList.add("ef-tl-drag-over"); });
+      row.addEventListener("dragleave", () => { row.classList.remove("ef-tl-drag-over"); });
+      row.addEventListener("drop", (e) => {
+        e.preventDefault();
+        row.classList.remove("ef-tl-drag-over");
+        if (!this._tlDragId || this._tlDragId === node.id) return;
+        const fromIdx = this.tlNodes.findIndex((n) => n.id === this._tlDragId);
+        const toIdx = this.tlNodes.findIndex((n) => n.id === node.id);
+        if (fromIdx < 0 || toIdx < 0) return;
+        const [moved] = this.tlNodes.splice(fromIdx, 1);
+        this.tlNodes.splice(toIdx, 0, moved);
+        this._tlDragId = null;
+        this.tlRenderNodes();
+        this.tlSaveNodes();
+      });
     });
   }
 
@@ -855,11 +1324,11 @@ class ToolsView extends ItemView {
 
   tlAddNode() { this.tlNodes.push({ id: uid(), time: this.tlNextTime(), title: "", content: "", note: "" }); this.tlRenderNodes(); this.tlSaveNodes(); }
 
-  /* ---- 灵感库 ---- */
+  /* ---- 灵感库 (读取灵感文件夹下笔记中未勾选的 checkbox) ---- */
   renderInspiration() {
     const c = this.tabBody; c.empty();
     const head = c.createDiv({ cls: "ef-insp-head" });
-    const input = head.createEl("input", { cls: "ef-insp-input", attr: { placeholder: "搜索..." } });
+    const input = head.createEl("input", { cls: "ef-insp-input", attr: { placeholder: "搜索未完成项..." } });
     input.value = this.inspQuery;
     input.oninput = debounce(() => { this.inspQuery = input.value; this.renderInspirationList(); }, 300);
     const newBtn = head.createEl("button", { cls: "mod-cta" });
@@ -868,7 +1337,7 @@ class ToolsView extends ItemView {
       const folder = this.plugin.workflow.getInspirationFolder();
       await this.plugin.workflow.ensureFolder(folder);
       const name = `灵感-${todayStr().slice(5)}-${nowTimeStr().replace(":","")}`;
-      const content = `---\ntype: edit-flow-inspiration\ncreated: ${todayStr()} ${nowTimeStr()}\ntags:\n  - 灵感/作品\n  - edit-flow/inspiration\n---\n\n# ${name}\n\n> 灵感描述...\n\n## 想法\n`;
+      const content = `---\nkanban-plugin: board\ntype: edit-flow-inspiration\ncreated: ${todayStr()} ${nowTimeStr()}\ntags:\n  - edit-flow/inspiration\n---\n\n`;
       const f = await this.app.vault.create(`${folder}/${name}.md`, content);
       await this.app.workspace.getLeaf(false).openFile(f);
       this.renderInspirationList();
@@ -878,19 +1347,40 @@ class ToolsView extends ItemView {
   }
   async renderInspirationList() {
     const c = this.inspListEl; if (!c) return; c.empty();
-    const tag = this.plugin.settings.inspirationTag;
-    const allFiles = this.app.vault.getMarkdownFiles();
-    const matches = [];
-    for (const f of allFiles) { const cache = this.app.metadataCache.getFileCache(f); if (cache?.tags) { for (const t of cache.tags) { if (t.tag.replace(/^#/,"") === tag) { matches.push(f); break; } } } }
-    const filtered = this.inspQuery ? matches.filter((f) => f.path.toLowerCase().includes(this.inspQuery.toLowerCase())) : matches;
-    c.createDiv({ cls: "ef-muted" }).textContent = `共 ${filtered.length} 条 · #${tag}`;
-    for (const f of filtered) {
+    const folder = this.plugin.workflow.getInspirationFolder();
+    const folderObj = this.app.vault.getAbstractFileByPath(folder);
+    let files = [];
+    const collect = (f) => {
+      if (f instanceof TFile && f.extension === "md") files.push(f);
+      else if (f instanceof TFolder) for (const child of f.children) collect(child);
+    };
+    if (folderObj instanceof TFolder) collect(folderObj);
+    // 收集所有未勾选 checkbox 项
+    const items = [];
+    for (const f of files) {
+      const text = await this.app.vault.read(f);
+      const lines = text.split("\n");
+      for (const line of lines) {
+        const m = line.match(/^\s*- \[ \] (.+)$/);
+        if (m && m[1].trim()) items.push({ file: f, text: m[1].trim() });
+      }
+    }
+    const q = this.inspQuery.trim().toLowerCase();
+    const filtered = q
+      ? items.filter((it) => it.text.toLowerCase().includes(q) || it.file.basename.toLowerCase().includes(q))
+      : items;
+    c.createDiv({ cls: "ef-muted" }).textContent = `共 ${filtered.length} 项未完成 · 来自 ${files.length} 个笔记`;
+    if (filtered.length === 0) {
+      c.createDiv({ cls: "ef-empty-state" }).createEl("p", { cls: "ef-muted" }).textContent = "暂无未完成项, 点击\"新建\"创建笔记";
+      return;
+    }
+    for (const it of filtered) {
       const row = c.createDiv({ cls: "ef-insp-row" });
-      const ic = row.createDiv({ cls: "ef-insp-row-icon" }); setLucideIcon(ic, "sparkles");
+      const ic = row.createDiv({ cls: "ef-insp-row-icon" }); setLucideIcon(ic, "circle");
       const nameEl = row.createDiv({ cls: "ef-insp-row-name" });
-      nameEl.textContent = f.basename;
-      nameEl.onclick = async () => await this.app.workspace.getLeaf(false).openFile(f);
-      row.createDiv({ cls: "ef-muted ef-insp-row-path" }).textContent = f.path.split("/").slice(0,-1).join("/");
+      nameEl.textContent = it.text;
+      nameEl.onclick = async () => await this.app.workspace.getLeaf(false).openFile(it.file);
+      row.createDiv({ cls: "ef-muted ef-insp-row-path" }).textContent = it.file.basename;
     }
   }
 
@@ -968,6 +1458,8 @@ class ToolsView extends ItemView {
       else if (["png", "jpg", "jpeg", "gif", "webp", "svg", "bmp"].includes(ext)) setLucideIcon(ic, "image");
       else if (["mp4", "mov", "avi", "mkv", "webm"].includes(ext)) setLucideIcon(ic, "video");
       else if (["mp3", "wav", "flac", "aac", "m4a"].includes(ext)) setLucideIcon(ic, "music");
+      else if (ext === "lrc") setLucideIcon(ic, "music");
+      else if (ext === "txt") setLucideIcon(ic, "file-text");
       else setLucideIcon(ic, "file");
       const nameEl = row.createDiv({ cls: "ef-insp-row-name" });
       // 显示相对素材文件夹的路径
@@ -975,10 +1467,50 @@ class ToolsView extends ItemView {
       nameEl.textContent = relPath;
       nameEl.title = f.path;
       nameEl.onclick = async () => {
-        if (f.extension === "md") await this.app.workspace.getLeaf(false).openFile(f);
+        if (f.extension === "md") { await this.app.workspace.getLeaf(false).openFile(f); }
+        else if (f.extension === "txt" || f.extension === "lrc") { await this.previewTextFile(f); }
         else this.app.workspace.getLeaf(false).openLinkText(f.path, "", false);
       };
     }
+  }
+
+  // 预览 txt / lrc 歌词文件
+  async previewTextFile(f) {
+    const modal = new Modal(this.app);
+    modal.titleEl.textContent = f.name;
+    modal.modalEl.style.maxWidth = "700px";
+    modal.modalEl.style.maxHeight = "80vh";
+    const content = await this.app.vault.read(f);
+    let displayText = content;
+    if (f.extension === "lrc") {
+      // 歌词文件: 去掉时间标签 [mm:ss.xxx] 方便阅读
+      displayText = content.replace(/\[\d{2}:\d{2}\.\d{2,3}\]/g, "").trim();
+    }
+    const body = modal.contentEl.createDiv({ cls: "ef-text-preview" });
+    body.textContent = displayText;
+    // 工具栏: 复制按钮
+    const toolbar = modal.contentEl.createDiv({ cls: "ef-text-preview-toolbar" });
+    const copyBtn = toolbar.createEl("button", { cls: "ef-btn ef-btn-sm" });
+    setLucideIcon(copyBtn, "copy"); copyBtn.appendText(" 复制全文");
+    copyBtn.onclick = async () => {
+      try { await navigator.clipboard.writeText(displayText); new Notice("已复制到剪贴板"); }
+      catch (e) {
+        // 兜底: 选中文字方式
+        const range = document.createRange(); range.selectNode(body);
+        const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range);
+        try { document.execCommand("copy"); new Notice("已复制"); } catch (e2) { new Notice("复制失败, 请手动选中文字"); }
+      }
+    };
+    // lrc 额外: 复制带时间标签的原文
+    if (f.extension === "lrc") {
+      const copyRawBtn = toolbar.createEl("button", { cls: "ef-btn ef-btn-sm" });
+      setLucideIcon(copyRawBtn, "clock"); copyRawBtn.appendText(" 复制原格式");
+      copyRawBtn.onclick = async () => {
+        try { await navigator.clipboard.writeText(content); new Notice("已复制原格式歌词"); }
+        catch (e) { new Notice("复制失败, 请手动选中"); }
+      };
+    }
+    modal.open();
   }
 }
 
@@ -2145,10 +2677,6 @@ class EditFlowSettingTab extends PluginSettingTab {
     this.addFolderSetting(c, "灵感文件夹", "灵感笔记在根目录下的文件夹名", "inspirationFolder", "灵感");
 
     c.createEl("h3").textContent = "功能";
-    new Setting(c).setName("灵感标签").setDesc("灵感库搜索的标签 (不带 #)").addText((t) => {
-      t.setValue(this.plugin.settings.inspirationTag);
-      t.onChange((v) => { this.plugin.settings.inspirationTag = v || "灵感/作品"; this.plugin.saveSettings(); });
-    });
     new Setting(c).setName("自动打开时间线").setDesc("创建带脚本的作品时自动激活功能区时间线").addToggle((t) => {
       t.setValue(this.plugin.settings.enableAutoOpenTimeline);
       t.onChange((v) => { this.plugin.settings.enableAutoOpenTimeline = v; this.plugin.saveSettings(); });

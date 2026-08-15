@@ -1,7 +1,7 @@
 {
   "id": "edit-flow",
   "name": "Edit Flow",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "minAppVersion": "1.4.0",
   "description": "可自定义的一体化媒体作品发布工作流系统 - 作品类型/对象/模板全自定义, 便签md化, 逻辑线(作品内嵌), 移动端兼容",
   "author": "melodidy",
